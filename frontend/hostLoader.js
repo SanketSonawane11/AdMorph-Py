@@ -14,7 +14,7 @@
   iframe.style.width = "320px";
   iframe.style.height = "250px";
   iframe.style.overflow = "hidden";
-  iframe.src = `${backend}/widget/${campaignId}/wrapper`;
+  iframe.src = `${backend}/widget/camp123/wrapper?session=sess1`;
   iframe.sandbox = "allow-scripts allow-same-origin allow-popups"; 
 
   document.body.appendChild(iframe);
