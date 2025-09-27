@@ -1,19 +1,29 @@
-# app.py
 from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-import joblib, os, json, sqlite3, uuid, time
+import joblib, os, json, time
 from pydantic import BaseModel
 from typing import Dict
 from datetime import datetime
+from starlette.middleware.base import BaseHTTPMiddleware
+from supabase import create_client, Client
 
+# Supabase configuration
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+last_logged_predictions = {}
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError("Supabase URL and Key must be set as environment variables.")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Existing local file paths
 ROOT = os.path.dirname(__file__)
 MODEL_DIR = os.path.join(ROOT, "models")
 MODEL_PATH = os.path.join(MODEL_DIR, "model.joblib")
 META_PATH = os.path.join(MODEL_DIR, "meta.json")
-DB_PATH = os.path.join(ROOT, "db.sqlite3")
 
-# Load model & meta
 def load_model_and_meta():
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError("Model not found. Run train_model.py first.")
@@ -25,59 +35,31 @@ def load_model_and_meta():
 model, meta = load_model_and_meta()
 
 # Simple label -> version mapping
-# v1 = not_interested, v2 = hesitant, v3 = interested/ready
 label_to_version = {
     "not_interested": "v1",
     "hesitant": "v2",
-    "curious": "v3",   # curious -> try more engaging variant
+    "curious": "v3",
     "ready": "v3"
 }
 
-# setup DB
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS campaigns (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      campaign_id TEXT UNIQUE,
-      original_html TEXT,
-      v1_html TEXT,
-      v2_html TEXT,
-      v3_html TEXT,
-      created_at TEXT
-    )
-    ''')
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      campaign_id TEXT,
-      session_id TEXT,
-      ts INTEGER,
-      hover_count INTEGER,
-      hover_duration INTEGER,
-      clicked INTEGER,
-      time_on_ad INTEGER,
-      predicted_label TEXT,
-      predicted_version TEXT,
-      actual_outcome INTEGER,
-      raw JSON
-    )
-    ''')
-    conn.commit()
-    conn.close()
+# No need for init_db() as Supabase handles schema creation
 
-init_db()
+class COEPHeaderMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers['Cross-Origin-Embedder-Policy'] = 'require-corp'
+        response.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
+        return response
 
 app = FastAPI()
+app.add_middleware(COEPHeaderMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # for MVP; tighten later
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"]
 )
 
-# Pydantic model for predict request
 class PredictRequest(BaseModel):
     campaign_id: str
     session_id: str
@@ -85,6 +67,7 @@ class PredictRequest(BaseModel):
 
 @app.post("/predict")
 async def predict(req: PredictRequest):
+    # ... (your existing prediction logic remains unchanged)
     f_order = meta["feature_order"]
     feat_vector = []
     try:
@@ -100,22 +83,29 @@ async def predict(req: PredictRequest):
 
     version = label_to_version.get(label, "v2")
 
-    # log the prediction
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-      INSERT INTO logs (campaign_id, session_id, ts, hover_count, hover_duration, clicked, time_on_ad, predicted_label, predicted_version, raw)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        req.campaign_id, req.session_id, int(time.time()*1000),
-        int(req.features.get("hover_count", 0)),
-        int(req.features.get("hover_duration", 0)),
-        int(req.features.get("clicked", 0)),
-        int(req.features.get("time_on_ad", 0)),
-        label, version, json.dumps(req.features)
-    ))
-    conn.commit()
-    conn.close()
+    # Get the last logged version from our in-memory cache
+    last_version = last_logged_predictions.get(req.session_id)
+    
+    # Only log to the database if the version has changed
+    if version != last_version:
+        log_data = {
+            "campaign_id": req.campaign_id,
+            "session_id": req.session_id,
+            "ts": int(time.time()*1000),
+            "hover_count": int(req.features.get("hover_count", 0)),
+            "hover_duration": int(req.features.get("hover_duration", 0)),
+            "clicked": int(req.features.get("clicked", 0)),
+            "time_on_ad": int(req.features.get("time_on_ad", 0)),
+            "predicted_label": label,
+            "predicted_version": version,
+            "raw": req.features
+        }
+
+        # Log to Supabase
+        supabase.table("logs").insert(log_data).execute()
+        
+        # Update our in-memory cache
+        last_logged_predictions[req.session_id] = version
 
     return JSONResponse({
         "version": version,
@@ -124,124 +114,162 @@ async def predict(req: PredictRequest):
         "features": req.features
     })
 
-
-# Endpoint to serve the iframe wrapper that will inject ad HTML
 @app.get("/widget/{campaign_id}/wrapper", response_class=HTMLResponse)
 async def widget_wrapper(campaign_id: str, session: str = None):
-    # Minimal wrapper. It will load content from /ad_content/<campaign_id>/<version>
-    # The wrapper includes the collection + sliding-window code
-    wrapper = """
+    # Fetch initial 'original' ad HTML directly
+    response = supabase.table("campaigns").select("original_html").eq("campaign_id", campaign_id).single().execute()
+
+    initial_html = ""
+    if response.data and response.data.get("original_html"):
+        initial_html = response.data.get("original_html")
+    else:
+        # Fallback to a placeholder if no data is found
+        initial_html = f"<div style='padding:20px;border:1px solid #ddd; text-align:center;'>Original Ad - campaign {campaign_id} (No DB content)</div>"
+
+    wrapper = f"""
 <!doctype html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html, body {{ margin: 0; padding: 0; }}
+  #ad-container {{
+    width:100%;
+    height:100%;
+    transition: opacity 0.8s ease; /* smooth fade transition */
+  }}
+</style>
+</head>
 <body>
-  <div id="ad-container" style="width:100%;height:100%;"></div>
+  <div id="ad-container">{initial_html}</div>
 
   <script>
-  const backendBase = "{'http://localhost:8000'}";
+  const backendBase = "http://localhost:8000";
   const campaignId = "{campaign_id}";
   const sessionId = "{session or ''}" || (localStorage.getItem('ad_session') || (localStorage.setItem('ad_session', Math.random().toString(36).slice(2)), localStorage.getItem('ad_session')));
-  // Helper to fetch ad version content and inject
+
+  let currentVersion = 'original'; // track last shown version
+  let isLoading = false; // prevent multiple simultaneous loads
+
   async function loadVersion(version) {{
-    const res = await fetch(`${{backendBase}}/ad_content/${{campaignId}}/${{version}}`);
-    const html = await res.text();
-    const container = document.getElementById('ad-container');
-    // simple fade
-    container.style.opacity = 0;
-    setTimeout(()=>{{ container.innerHTML = html; container.style.opacity = 1; }}, 200);
+    if(version === currentVersion || isLoading) return;
+    
+    isLoading = true;
+    
+    try {{
+      const res = await fetch(`${{backendBase}}/ad_content/${{campaignId}}/${{version}}`);
+      const html = await res.text();
+      const container = document.getElementById('ad-container');
+      
+      container.style.opacity = 0;
+      setTimeout(()=>{{ 
+          container.innerHTML = html; 
+          container.style.opacity = 1;
+          currentVersion = version;
+      }}, 400);
+    }} catch(error) {{
+      console.error("Error loading version:", error);
+    }} finally {{
+      isLoading = false;
+    }}
   }}
 
-  // Initially load original
-  loadVersion('original');
+  // The initial load happens directly on the server, so no need for this call.
+  // We'll keep the function here for subsequent morphing calls.
+  // loadVersion(currentVersion);
 
-  // --------- collection logic (sliding window of 10s) ----------
-  let hoverSegments = []; // {start, end}
-  let currentHoverStart = null;
-  let clickTimes = [];
-  let visibilitySegments = []; // fallback for time_on_ad
-  let currentVisibleStart = Date.now();
-
-  // attach events to container (delegate)
+  let hoverSegments = [], currentHoverStart = null, clickTimes = [], visibilitySegments = [], currentVisibleStart = Date.now();
   const container = document.getElementById('ad-container');
   container.addEventListener('mouseenter', ()=>{{ currentHoverStart = Date.now(); }});
-  container.addEventListener('mouseleave', ()=>{{ if(currentHoverStart){ hoverSegments.push({start: currentHoverStart, end: Date.now()}); currentHoverStart=null; }}});
+  container.addEventListener('mouseleave', ()=>{{ 
+      if(currentHoverStart){{ hoverSegments.push({{start: currentHoverStart, end: Date.now()}}); currentHoverStart = null; }} 
+  }});
   container.addEventListener('click', ()=>{{ clickTimes.push(Date.now()); }});
-
-  // when page becomes hidden/visible
-  document.addEventListener('visibilitychange', ()=>{{
-    if(document.visibilityState === 'hidden') {{
-      // push current visible segment
-      visibilitySegments.push({{start: currentVisibleStart, end: Date.now()}});
-    }} else {{
-      currentVisibleStart = Date.now();
-    }}
+  document.addEventListener('visibilitychange', ()=>{{ 
+      if(document.visibilityState === 'hidden'){{ visibilitySegments.push({{start: currentVisibleStart, end: Date.now()}}); }}
+      else{{ currentVisibleStart = Date.now(); }}
   }});
 
-  // compute overlap of a segment with lastWindow [now - 10000, now]
-  function overlapWithWindow(segStart, segEnd, windowStart, windowEnd) {{
-    const s = Math.max(segStart, windowStart);
-    const e = Math.min(segEnd, windowEnd);
+  function overlap(segStart, segEnd, winStart, winEnd) {{
+    const s = Math.max(segStart, winStart);
+    const e = Math.min(segEnd, winEnd);
     return Math.max(0, e - s);
   }}
 
   async function computeAndSend() {{
     const now = Date.now();
-    const W = 10000; // 10 seconds
+    const W = 10000;
     const winStart = now - W;
 
-    // finalize ongoing hover if it's older than window start
-    let hoverDur = 0;
-    let hoverCnt = 0;
-    // if currently hovering, add a virtual segment
+    let hoverDur=0, hoverCnt=0;
     let tmpSegments = hoverSegments.slice();
-    if(currentHoverStart) tmpSegments.push({start: currentHoverStart, end: now});
-
-    tmpSegments.forEach(seg => {{
-      const o = overlapWithWindow(seg.start, seg.end, winStart, now);
-      if(o > 0) hoverDur += o;
-      // count hover entries if start in window
-      if(seg.start >= winStart && seg.start <= now) hoverCnt += 1;
+    if(currentHoverStart) tmpSegments.push({{start: currentHoverStart, end: now}});
+    tmpSegments.forEach(seg=>{{ 
+        const o = overlap(seg.start, seg.end, winStart, now); 
+        if(o>0) hoverDur += o; 
+        if(seg.start>=winStart && seg.start<=now) hoverCnt++; 
     }});
 
-    // clicks in window
-    const clicks = clickTimes.filter(t => t >= winStart).length;
-
-    // time_on_ad: use visibilitySegments + currentVisibleStart
+    const clicks = clickTimes.filter(t=>t>=winStart).length;
     let visSegments = visibilitySegments.slice();
-    visSegments.push({start: currentVisibleStart, end: now});
+    visSegments.push({{start: currentVisibleStart, end: now}});
     let t_on_ad = 0;
-    visSegments.forEach(seg => {{
-      t_on_ad += overlapWithWindow(seg.start, seg.end, winStart, now);
-    }});
+    visSegments.forEach(seg=>{{ t_on_ad += overlap(seg.start, seg.end, winStart, now); }});
 
-    // convert ms -> seconds (whole seconds)
     const features = {{
       hover_count: hoverCnt,
       hover_duration: Math.round(hoverDur/1000),
-      clicked: clicks > 0 ? 1 : 0,
+      clicked: clicks>0 ? 1 : 0,
       time_on_ad: Math.round(t_on_ad/1000)
     }};
 
     try {{
       const res = await fetch(`${{backendBase}}/predict`, {{
-         method: 'POST',
-         headers: {{'Content-Type': 'application/json'}},
-         body: JSON.stringify({{campaign_id: campaignId, session_id: sessionId, features}})
+         method:'POST',
+         headers:{{'Content-Type':'application/json'}},
+         body: JSON.stringify({{campaign_id:campaignId, session_id:sessionId, features}})
       }});
       const data = await res.json();
-      if(data.version) {{
-         // if backend recommends a different version, load it
-         // For simplicity, always load recommended version
-         await loadVersion(data.version);
+      
+      if(window.parent && window.parent !== window) {{
+        window.parent.postMessage({{
+          type: 'admorph_analytics',
+          campaignId: campaignId,
+          sessionId: sessionId,
+          data: {{
+            currentVersion: currentVersion,
+            newVersion: data.version,
+            features: features,
+            prediction: data,
+            timestamp: now
+          }}
+        }}, '*');
       }}
-    }} catch(err) {{
-      console.error("predict error", err);
+      
+      if(data.version && data.version !== currentVersion) {{
+        await loadVersion(data.version);
+        if(window.parent && window.parent !== window) {{
+          window.parent.postMessage({{
+            type: 'admorph_analytics',
+            campaignId: campaignId,
+            sessionId: sessionId,
+            data: {{
+              type: 'state_change',
+              oldVersion: currentVersion,
+              newVersion: data.version,
+              features: features,
+              prediction: data,
+              timestamp: now
+            }}
+          }}, '*');
+        }}
+      }}
+    }} catch(err){{ 
+      console.error("predict error", err); 
     }}
   }}
-
-  // run every 2 seconds (configurable)
-  setInterval(computeAndSend, 2000);
-
+  setInterval(computeAndSend, 3000);
   </script>
 </body>
 </html>
@@ -251,55 +279,55 @@ async def widget_wrapper(campaign_id: str, session: str = None):
 # Endpoint to serve ad HTML content stored in DB
 @app.get("/ad_content/{campaign_id}/{version}", response_class=HTMLResponse)
 async def ad_content(campaign_id: str, version: str):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT original_html, v1_html, v2_html, v3_html FROM campaigns WHERE campaign_id = ?", (campaign_id,))
-    row = c.fetchone()
-    conn.close()
-    if not row:
-        # default placeholder versions if campaign not found
+    response = supabase.table("campaigns").select(f"original_html, v1_html, v2_html, v3_html").eq("campaign_id", campaign_id).limit(1).execute()
+    
+    if not response.data:
         default_html = {
-            "original": "<div style='padding:20px;border:1px solid #ddd'>Original Ad - campaign {}</div>".format(campaign_id),
+            "original": f"<div style='padding:20px;border:1px solid #ddd'>Original Ad - campaign {campaign_id}</div>",
             "v1": "<div style='padding:20px;border:2px solid #f00'>v1 - not interested variant</div>",
             "v2": "<div style='padding:20px;border:2px solid #ffa500'>v2 - hesitant variant</div>",
             "v3": "<div style='padding:20px;border:2px solid #0a0'>v3 - engaged variant</div>"
         }
         return HTMLResponse(default_html.get(version, default_html["original"]))
-    orig, v1, v2, v3 = row
-    mapping = {"original": orig or "", "v1": v1 or "", "v2": v2 or "", "v3": v3 or ""}
+
+    row = response.data[0]
+    mapping = {
+        "original": row.get("original_html", ""),
+        "v1": row.get("v1_html", ""),
+        "v2": row.get("v2_html", ""),
+        "v3": row.get("v3_html", "")
+    }
     return HTMLResponse(mapping.get(version, mapping["original"]))
 
 # Endpoint to register a campaign and HTML (simple admin API)
 @app.post("/admin/register_campaign")
 async def register_campaign(payload: dict):
-    # expects {"campaign_id": "camp123", "original_html": "...", "v1_html": "...", "v2_html": "...", "v3_html": "..."}
     campaign_id = payload.get("campaign_id")
     if not campaign_id:
         raise HTTPException(status_code=400, detail="campaign_id required")
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-      INSERT OR REPLACE INTO campaigns (campaign_id, original_html, v1_html, v2_html, v3_html, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    ''', (campaign_id, payload.get("original_html"), payload.get("v1_html"), payload.get("v2_html"), payload.get("v3_html"), datetime.utcnow().isoformat()))
-    conn.commit()
-    conn.close()
+    
+    # Supabase will handle upsert (insert or update) behavior
+    data, count = supabase.table("campaigns").upsert({
+        "campaign_id": campaign_id,
+        "original_html": payload.get("original_html"),
+        "v1_html": payload.get("v1_html"),
+        "v2_html": payload.get("v2_html"),
+        "v3_html": payload.get("v3_html")
+    }).execute()
+
     return {"ok": True}
 
-# manual retrain trigger (MVP)
-@app.post("/admin/retrain")
-async def retrain():
-    # for MVP, just call train_model.py; in prod, run safe retraining with data pipelines
-    try:
-        # naive approach: call train script — ensure correct cwd
-        import subprocess
-        subprocess.run(["python", "train_model.py"], cwd=ROOT, check=True)
-        # reload model & meta
-        global model, meta
-        model, meta = load_model_and_meta()
-        return {"ok": True, "msg": "retrained and reloaded model"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+# manual retrain trigger (Future)
+# @app.post("/admin/retrain")
+# async def retrain():
+#     try:
+#         import subprocess
+#         subprocess.run(["python", "train_model.py"], cwd=ROOT, check=True)
+#         global model, meta
+#         model, meta = load_model_and_meta()
+#         return {"ok": True, "msg": "retrained and reloaded model"}
+#     except Exception as e:
+#         return {"ok": False, "error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn

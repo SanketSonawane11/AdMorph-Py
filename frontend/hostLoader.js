@@ -1,21 +1,30 @@
-// host_loader.js — drop this script tag on host pages with data-campaign-id attribute.
-// Usage on host page:
-// <script src="https://.../host_loader.js" data-backend="https://your-backend.example" data-campaign-id="camp1"></script>
-
-(function(){
+(function () {
   const scriptTag = document.currentScript;
-  const campaignId = scriptTag.getAttribute('data-campaign-id');
-  const backend = scriptTag.getAttribute('data-backend') || 'http://localhost:8000';
-  if(!campaignId) { console.error("host_loader: campaign id missing"); return; }
+  const campaignId = scriptTag.getAttribute("data-campaign-id");
+  const backend =
+    scriptTag.getAttribute("data-backend") || "http://localhost:8000";
+  
+  if (!campaignId) {
+    console.error("host_loader: campaign id missing");
+    return;
+  }
 
-  // create iframe
-  const iframe = document.createElement('iframe');
+  // Create iframe 
+  const iframe = document.createElement("iframe");
   iframe.style.border = "0";
-  iframe.style.width = "320px";
-  iframe.style.height = "250px";
+  iframe.style.width = "100%";
+  iframe.style.height = "100%";
   iframe.style.overflow = "hidden";
-  iframe.src = `${backend}/widget/camp123/wrapper?session=sess1`;
-  iframe.sandbox = "allow-scripts allow-same-origin allow-popups"; 
+  iframe.style.borderRadius = "15px";
+  iframe.src = `${backend}/widget/${campaignId}/wrapper?session=${Math.random().toString(36).slice(2)}`;
+  iframe.sandbox = "allow-scripts allow-same-origin allow-popups";
 
-  document.body.appendChild(iframe);
+  const container = document.getElementById("ad-widget-container");
+  if (container) {
+    container.innerHTML = '';
+    container.appendChild(iframe);
+  } else {
+    console.error("Ad container not found, appending to body as fallback.");
+    document.body.appendChild(iframe);
+  }
 })();

@@ -1,15 +1,950 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <title>Admorph Frontend</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TechCrunch - The Future of AI-Powered Advertising</title>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, sans-serif;
+        line-height: 1.6;
+        background-color: #ffffff;
+        color: #333;
+      }
+
+      /* Header */
+      header {
+        background: white;
+        color: white;
+        padding: 15px 0;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .header-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .logo {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #00d084;
+      }
+
+      nav ul {
+        display: flex;
+        list-style: none;
+        gap: 30px;
+      }
+
+      nav a {
+        color: white;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.3s ease;
+      }
+
+      nav a:hover {
+        color: #00d084;
+      }
+
+      /* Main Layout */
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 40px 20px;
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 50px;
+        align-items: start;
+      }
+
+      /* Article */
+      .article {
+        background: white;
+        padding: 0;
+      }
+
+      .article-header {
+        margin-bottom: 30px;
+      }
+
+      .article-header h1{
+        color: white;
+      }
+
+      .article-category {
+        color: #00d084;
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 10px;
+      }
+
+      .article h1 {
+        font-size: 2.8rem;
+        font-weight: 800;
+        line-height: 1.2;
+        margin-bottom: 20px;
+        color: #000;
+      }
+
+      .article-meta {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .author {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .author-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: linear-gradient(45deg, #00d084, #007bff);
+      }
+
+      .article-content p {
+        margin-bottom: 20px;
+        font-size: 1.1rem;
+        line-height: 1.7;
+        color: #444;
+      }
+
+      .article-content p:first-of-type {
+        font-size: 1.25rem;
+        font-weight: 500;
+        color: #222;
+      }
+
+      /* Sidebar */
+      .sidebar {
+        position: sticky;
+        top: 120px;
+      }
+
+      /* Ad Widget */
+      .ad-section {
+        margin-bottom: 30px;
+      }
+
+      .ad-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+
+      .ad-title {
+        font-size: 0.85rem;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-weight: 600;
+      }
+
+      .adaptive-indicator {
+        background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+        color: white;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        animation: pulse-glow 2s infinite;
+      }
+
+      @keyframes pulse-glow {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.7;
+        }
+      }
+
+      #ad-widget-container {
+        width: 400px;
+        height: 220px;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        background: #f8f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        color: #666;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+        position: relative;
+      }
+
+      #ad-widget-container.state-change {
+        border-color: #4ecdc4;
+        box-shadow: 0 15px 40px rgba(78, 205, 196, 0.3);
+        animation: state-change-pulse 2s ease-in-out;
+      }
+
+      @keyframes state-change-pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.02);
+        }
+      }
+
+      /* Analytics Panel */
+      .analytics-panel {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 25px;
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .analytics-panel::before {
+        content: "";
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(
+          circle,
+          rgba(255, 255, 255, 0.1) 0%,
+          transparent 70%
+        );
+        animation: shimmer 3s ease-in-out infinite;
+      }
+
+      @keyframes shimmer {
+        0%,
+        100% {
+          transform: translateX(-50%) translateY(-50%) rotate(0deg);
+        }
+        50% {
+          transform: translateX(-50%) translateY(-50%) rotate(180deg);
+        }
+      }
+
+      .analytics-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .analytics-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .live-indicator {
+        width: 8px;
+        height: 8px;
+        background: #ff4757;
+        border-radius: 50%;
+        animation: blink 1s infinite;
+      }
+
+      @keyframes blink {
+        0%,
+        50% {
+          opacity: 1;
+        }
+        51%,
+        100% {
+          opacity: 0.3;
+        }
+      }
+
+      .current-state {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 8px 15px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+        position: relative;
+        z-index: 1;
+      }
+
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin-bottom: 20px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .metric {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .metric-value {
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin-bottom: 5px;
+        color: #fff;
+      }
+
+      .metric-label {
+        font-size: 0.8rem;
+        opacity: 0.8;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .state-timeline {
+        position: relative;
+        z-index: 1;
+        margin-top: 20px;
+      }
+
+      .timeline-header {
+        font-size: 0.9rem;
+        margin-bottom: 15px;
+        opacity: 0.9;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .timeline {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .timeline-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.85rem;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        backdrop-filter: blur(5px);
+      }
+
+      .timeline-time {
+        color: #4ecdc4;
+        font-weight: 600;
+        min-width: 60px;
+      }
+
+      .timeline-state {
+        flex: 1;
+      }
+
+      .timeline-arrow {
+        color: #ff6b6b;
+      }
+
+      /* Comparison Panel */
+      .comparison-panel {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        border: 1px solid #eee;
+        margin-top: 30px;
+      }
+
+      .comparison-header {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+        color: #333;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .performance-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+
+      .performance-item {
+        text-align: center;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 10px;
+      }
+
+      .performance-type {
+        font-size: 0.85rem;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+      }
+
+      .performance-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-bottom: 5px;
+      }
+
+      .performance-value.traditional {
+        color: #dc3545;
+      }
+      .performance-value.adaptive {
+        color: #28a745;
+      }
+
+      .performance-change {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #28a745;
+      }
+
+      /* Loading Animation */
+      .loading-spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid #f3f3f3;
+        border-top: 2px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 10px;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Responsive */
+      @media (max-width: 1024px) {
+        .container {
+          grid-template-columns: 1fr;
+          gap: 30px;
+        }
+
+        .sidebar {
+          position: relative;
+          top: auto;
+          order: -1;
+        }
+
+        .article h1 {
+          font-size: 2.2rem;
+        }
+      }
+
+      @media (max-width: 768px) {
+        nav ul {
+          display: none;
+        }
+
+        .container {
+          padding: 20px;
+        }
+
+        .analytics-panel {
+          padding: 20px;
+        }
+
+        .metrics-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .performance-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
   </head>
   <body>
-    <h1>This is the Admorph Frontend.</h1>
-    <p>This page demonstrates how to embed the host loader script.</p>
-    <script
-      src="/frontend/hostLoader.js"
-      data-backend="your-backend-url"
-      data-campaign-id="camp1"
-    ></script>
+    <header>
+      <div class="header-container">
+        <div class="logo">TechCrunch</div>
+        <nav>
+          <ul>
+            <li>
+              <a href="#"><i class="fas fa-home"></i> Home</a>
+            </li>
+            <li>
+              <a href="#"><i class="fas fa-newspaper"></i> News</a>
+            </li>
+            <li>
+              <a href="#"><i class="fas fa-rocket"></i> Startups</a>
+            </li>
+            <li>
+              <a href="#"><i class="fas fa-chart-line"></i> Markets</a>
+            </li>
+            <li>
+              <a href="#"><i class="fas fa-video"></i> Videos</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <div class="container">
+      <article class="article">
+        <header class="article-header">
+          <div class="article-category">Artificial Intelligence</div>
+          <h1>The Revolutionary Impact of AI-Powered Adaptive Advertising</h1>
+          <div class="article-meta">
+            <div class="author">
+              <div class="author-avatar"></div>
+              <span>Sarah Chen, Tech Reporter</span>
+            </div>
+            <span><i class="fas fa-calendar"></i> September 27, 2025</span>
+            <span><i class="fas fa-clock"></i> 6 min read</span>
+            <span><i class="fas fa-eye"></i> 12.4K views</span>
+          </div>
+        </header>
+
+        <div class="article-content">
+          <p>
+            A groundbreaking new technology is quietly revolutionizing the
+            digital advertising industry, promising to solve one of marketing's
+            biggest challenges: showing the right ad to the right person at the
+            right moment.
+          </p>
+
+          <p>
+            Traditional digital advertising has long operated on a
+            "one-size-fits-all" approach, displaying identical ads to users
+            regardless of their interest level or readiness to purchase. This
+            inefficient method leads to ad fatigue, poor user experiences, and
+            billions of dollars in wasted advertising spend annually.
+          </p>
+
+          <p>
+            Enter Admorph AI, a pioneering company that has developed an
+            artificial intelligence system capable of analyzing user behavior in
+            real-time and adapting advertisements accordingly. The technology
+            represents a paradigm shift from static advertising to dynamic,
+            responsive marketing that learns from every interaction.
+          </p>
+
+          <p>
+            The system works by tracking subtle behavioral signals that humans
+            typically overlook: how long a user hovers over an ad, their
+            scrolling patterns, mouse movements, click behavior, and time spent
+            engaging with content. These micro-interactions are processed
+            through sophisticated machine learning algorithms that can predict
+            user intent with remarkable accuracy.
+          </p>
+
+          <p>
+            "We're not just changing what ads people see," explains Dr. Michael
+            Rodriguez, Admorph's Chief Technology Officer. "We're fundamentally
+            reimagining how advertising works in a world where user attention is
+            the most valuable commodity."
+          </p>
+
+          <p>
+            The results speak for themselves. Early adopters of the technology
+            have reported conversion rate improvements of up to 340%, while
+            simultaneously seeing significant increases in user satisfaction
+            scores. The key lies in the system's ability to serve different ad
+            variants based on user engagement levels.
+          </p>
+
+          <p>
+            For users showing minimal interest, the system serves subtle,
+            minimalist ad variants that respect the browsing experience.
+            Hesitant users might see special offers or incentives designed to
+            overcome purchase barriers. Highly engaged users receive premium
+            messaging and strong call-to-action elements that capitalize on
+            their demonstrated interest.
+          </p>
+
+          <p>
+            The technology has caught the attention of major advertising
+            platforms and Fortune 500 companies. Google, Facebook, and Amazon
+            are all reportedly exploring similar adaptive advertising
+            technologies, recognizing the potential to improve both advertiser
+            ROI and user experience simultaneously.
+          </p>
+
+          <p>
+            Privacy advocates have raised questions about the data collection
+            required for such personalization. However, Admorph's system
+            operates without collecting personally identifiable information,
+            instead focusing on anonymized behavioral patterns that are
+            processed in real-time and not stored long-term.
+          </p>
+
+          <p>
+            "The future of advertising isn't about collecting more personal
+            data," says Jennifer Walsh, Privacy Advocacy Director at the Digital
+            Rights Foundation. "It's about being smarter with behavioral signals
+            that users are already sharing through their interactions."
+          </p>
+
+          <p>
+            Industry analysts predict that adaptive advertising technologies
+            will become standard within the next three years, fundamentally
+            changing how brands connect with consumers online. Companies that
+            fail to adopt these intelligent systems risk being left behind in an
+            increasingly competitive digital landscape.
+          </p>
+
+          <p>
+            The implications extend beyond just better advertising performance.
+            By reducing ad fatigue and improving relevance, this technology
+            could help restore user trust in digital marketing, creating a more
+            sustainable ecosystem for content creators, publishers, and
+            advertisers alike.
+          </p>
+
+          <p>
+            As artificial intelligence continues to evolve, the next frontier of
+            adaptive advertising may include integration with voice assistants,
+            augmented reality platforms, and Internet of Things devices,
+            creating seamless, contextually aware marketing experiences that
+            feel natural rather than intrusive.
+          </p>
+
+          <p>
+            The revolution in digital advertising has begun, and it's powered by
+            artificial intelligence that understands not just what users want,
+            but when they want it.
+          </p>
+        </div>
+      </article>
+
+      <aside class="sidebar">
+        <div class="ad-section">
+          <div class="ad-header">
+            <div class="ad-title">Sponsored Content</div>
+            <div class="adaptive-indicator">Live AI</div>
+          </div>
+          <div id="ad-widget-container">
+            <div class="loading-spinner"></div>
+            <span>Loading adaptive advertisement...</span>
+          </div>
+        </div>
+
+        <div class="analytics-panel">
+          <div class="analytics-header">
+            <div class="analytics-title">
+              <!-- <i class="fas fa-brain"></i> -->
+              AI Analytics
+            </div>
+            <div class="live-indicator"></div>
+          </div>
+
+          <div class="current-state">
+            <div id="currentStateDisplay">Analyzing Behavior...</div>
+          </div>
+
+          <div class="metrics-grid">
+            <div class="metric">
+              <div class="metric-value" id="hoverMetric">0</div>
+              <div class="metric-label">Hovers</div>
+            </div>
+            <div class="metric">
+              <div class="metric-value" id="timeMetric">0s</div>
+              <div class="metric-label">View Time</div>
+            </div>
+            <div class="metric">
+              <div class="metric-value" id="interactionMetric">0</div>
+              <div class="metric-label">Interactions</div>
+            </div>
+            <div class="metric">
+              <div class="metric-value" id="adaptationMetric">0</div>
+              <div class="metric-label">Adaptations</div>
+            </div>
+          </div>
+
+          <div class="state-timeline">
+            <div class="timeline-header">
+              <i class="fas fa-history"></i>
+              State Changes
+            </div>
+            <div class="timeline" id="stateTimeline">
+              <div class="timeline-item">
+                <span class="timeline-time">00:00</span>
+                <span class="timeline-state">Initial Load</span>
+                <span class="timeline-arrow">→</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="comparison-panel">
+          <div class="comparison-header">
+            <i class="fas fa-chart-bar"></i>
+            Performance Comparison
+          </div>
+          <div class="performance-grid">
+            <div class="performance-item">
+              <div class="performance-type">Traditional Ads</div>
+              <div class="performance-value traditional">2.3%</div>
+              <div>Conversion Rate</div>
+            </div>
+            <div class="performance-item">
+              <div class="performance-type">Adaptive Ads</div>
+              <div class="performance-value adaptive" id="adaptivePerformance">
+                7.8%
+              </div>
+              <div class="performance-change" id="performanceChange">
+                +240% improvement
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <script>
+      (function () {
+        // Hardcoded campaign ID since the selector is removed
+        const campaignId = "fashion_camp_02";
+        let currentIframe = null;
+        let startTime = Date.now();
+        let totalViewTime = 0;
+        let currentState = "initial";
+        let adaptationCount = 0;
+
+        const backendUrl = "http://localhost:8000";
+
+        // State labels mapping
+        const stateLabels = {
+          original: "Analyzing Behavior",
+          v1: "Not Interested",
+          v2: "Showing Interest",
+          v3: "Highly Engaged",
+        };
+
+        const stateColors = {
+          original: "#667eea",
+          v1: "#dc3545",
+          v2: "#ffc107",
+          v3: "#28a745",
+        };
+
+        // Conversion rate mapping for A/B comparison
+        const performanceRates = {
+          original: 2.3, // Baseline
+          v1: 1.1,
+          v2: 5.2,
+          v3: 9.7,
+        };
+
+        // Listen for messages from iframe
+        window.addEventListener(
+          "message",
+          function (event) {
+            if (event.data && event.data.type === "admorph_analytics") {
+              handleAnalyticsData(event.data.data);
+            }
+          },
+          false
+        );
+
+        function handleAnalyticsData(data) {
+          // Update dashboard metrics from backend data
+          if (data.features) {
+            document.getElementById("hoverMetric").textContent =
+              data.features.hover_count || 0;
+            document.getElementById("interactionMetric").textContent =
+              data.features.clicked || 0;
+          }
+
+          // Update state display and timeline on a state change
+          if (data.newVersion && data.newVersion !== currentState) {
+            updateCurrentState(data.newVersion);
+          }
+        }
+
+        function createIframe(campaignId) {
+          const iframe = document.createElement("iframe");
+          iframe.style.border = "0";
+          iframe.style.width = "100%";
+          iframe.style.height = "100%";
+          iframe.style.overflow = "hidden";
+          iframe.style.borderRadius = "15px";
+          iframe.src = `${backendUrl}/widget/${campaignId}/wrapper?session=${Math.random()
+            .toString(36)
+            .slice(2)}`;
+          iframe.sandbox = "allow-scripts allow-same-origin allow-popups";
+          return iframe;
+        }
+
+        function updateCurrentState(newState) {
+          const oldState = currentState;
+          currentState = newState;
+
+          // Only increment adaptation count if a real change occurred
+          if (oldState !== "initial") {
+            adaptationCount++;
+          }
+
+          // Add to timeline
+          addStateToTimeline(newState);
+
+          // Update display
+          const stateDisplay = document.getElementById("currentStateDisplay");
+          if (stateDisplay) {
+            stateDisplay.textContent = stateLabels[newState] || newState;
+            stateDisplay.style.backgroundColor = stateColors[newState];
+          }
+
+          // Update performance comparison
+          updatePerformanceMetrics(newState);
+
+          // Add animation to ad container
+          const container = document.getElementById("ad-widget-container");
+          if (container) {
+            container.classList.add("state-change");
+            setTimeout(() => container.classList.remove("state-change"), 2000);
+          }
+
+          // Update metrics display
+          updateMetrics();
+        }
+
+        let highestAdaptiveRate = performanceRates["original"];
+
+        function updatePerformanceMetrics(newState) {
+          const traditionalRate = 2.3;
+          const adaptiveRate = performanceRates[newState] || traditionalRate;
+          if (adaptiveRate > highestAdaptiveRate) {
+            highestAdaptiveRate = adaptiveRate;
+          }
+
+          document.getElementById(
+            "adaptivePerformance"
+          ).textContent = `${highestAdaptiveRate.toFixed(1)}%`;
+
+          const improvement =
+            ((highestAdaptiveRate - traditionalRate) / traditionalRate) * 100;
+
+          const changeElement = document.getElementById("performanceChange");
+          changeElement.textContent = `${improvement.toFixed(0)}% improvement`;
+          if (improvement >= 0) {
+            changeElement.style.color = "#28a745";
+          } else {
+            changeElement.style.color = "#dc3545";
+          }
+        }
+
+        function addStateToTimeline(newState) {
+          const timeline = document.getElementById("stateTimeline");
+          if (!timeline) return;
+
+          const totalSeconds = Math.floor((Date.now() - startTime) / 1000);
+          const minutes = Math.floor(totalSeconds / 60);
+          const seconds = totalSeconds % 60;
+          const timeStr = `${minutes.toString().padStart(2, "0")}:${seconds
+            .toString()
+            .padStart(2, "0")}`;
+
+          const item = document.createElement("div");
+          item.className = "timeline-item";
+          item.innerHTML = `
+          <span class="timeline-time">${timeStr}</span>
+          <span class="timeline-state">${
+            stateLabels[newState] || newState
+          }</span>
+          <span class="timeline-arrow">→</span>
+        `;
+
+          // Insert at the top
+          timeline.insertBefore(item, timeline.firstChild);
+
+          // Keep only last 5 items
+          while (timeline.children.length > 5) {
+            timeline.removeChild(timeline.lastChild);
+          }
+        }
+
+        function updateMetrics() {
+          document.getElementById("adaptationMetric").textContent =
+            adaptationCount;
+
+          const totalSeconds = Math.floor(totalViewTime / 1000);
+          document.getElementById("timeMetric").textContent =
+            totalSeconds + "s";
+        }
+
+        function loadInitialCampaign() {
+          const container = document.getElementById("ad-widget-container");
+          if (!container) return;
+
+          // Create new iframe
+          currentIframe = createIframe(campaignId);
+          container.innerHTML = "";
+          container.appendChild(currentIframe);
+
+          // Set initial state display
+          const stateDisplay = document.getElementById("currentStateDisplay");
+          if (stateDisplay) {
+            stateDisplay.textContent = "Analyzing Behavior...";
+            stateDisplay.style.backgroundColor = "#667eea";
+          }
+
+          updatePerformanceMetrics("original");
+
+          // Start the stopwatch timer
+          setInterval(() => {
+            totalViewTime += 1000;
+            updateMetrics();
+          }, 1000);
+        }
+
+        loadInitialCampaign();
+      })();
+    </script>
   </body>
 </html>
